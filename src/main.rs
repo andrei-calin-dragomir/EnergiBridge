@@ -15,7 +15,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use sysinfo::{CpuExt, Pid, PidExt, ProcessExt, RefreshKind, System, SystemExt};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 use cpu::{get_cpu_counter, get_cpu_usage};
 use gpu::get_gpu_counter;
@@ -76,10 +76,10 @@ fn main() {
         exit(1);
     }
 
-    if interval < System::MINIMUM_CPU_UPDATE_INTERVAL {
+    if interval < sysinfo::MINIMUM_CPU_UPDATE_INTERVAL {
         eprintln!(
             "[WARNING] Interval must be at least {}ms to accurately measure CPU usage.",
-            System::MINIMUM_CPU_UPDATE_INTERVAL.as_millis()
+            sysinfo::MINIMUM_CPU_UPDATE_INTERVAL.as_millis()
         );
     }
     
@@ -94,7 +94,7 @@ fn main() {
 
     let mut sys = System::new_all();
     sys.refresh_all();
-    std::thread::sleep(System::MINIMUM_CPU_UPDATE_INTERVAL);
+
     let mut results: HashMap<String, f64> = HashMap::new();
     collect(&mut sys, collect_gpu, 0, &mut results);
 
@@ -150,6 +150,12 @@ fn main() {
                     }
                     previous_time = SystemTime::now();
                     previous_results = results.clone();
+                    // Refresh CPU usage to get actual value.
+                    sys.refresh_processes_specifics(
+                        ProcessesToUpdate::All,
+                        true,
+                        ProcessRefreshKind::new().with_cpu()
+                    );
                     collect(&mut sys, collect_gpu, child.id(), &mut results);
     
                     if !running.load(Ordering::SeqCst) {
@@ -232,7 +238,7 @@ fn main() {
             previous_results = results.clone();
             collect(&mut sys, collect_gpu, pid.as_u32(), &mut results);
             // Check if the process is still running
-            sys.refresh_processes();
+            sys.refresh_processes(ProcessesToUpdate::All, true);
             if sys.process(pid).is_none() {
                 println!("Process with PID {} has exited.", pid);
                 break 0;
