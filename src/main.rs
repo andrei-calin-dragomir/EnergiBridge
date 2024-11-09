@@ -111,7 +111,8 @@ fn main() {
         match cmd {
             Ok(mut child) => {
                 let start_time = Instant::now();
-    
+                sys.refresh_all();
+                println!("{}", child.id());
                 collect(&mut sys, collect_gpu, child.id(), &mut results);
                 print_header(&results, sep, &mut output);
                 let mut previous_time = SystemTime::now();
